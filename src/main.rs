@@ -12,15 +12,40 @@ enum TokenType {
     LeftParen,
     #[display("RIGHT_PAREN")]
     RightParen,
+    #[display("LEFT_BRACE")]
+    LeftBrace,
+    #[display("RIGHT_BRACE")]
+    RightBrace,
+    #[display("STAR")]
+    Star,
+    #[display("DOT")]
+    Dot,
+    #[display("PLUS")]
+    Plus,
+    #[display("MINUS")]
+    Minus,
+    #[display("COMMA")]
+    Comma,
+    #[display("SEMICOLON")]
+    Semicolon,
     #[display("EOF")]
     Eof,
 }
 
 impl TokenType {
+    // TODO: use a hashmap to store the lexeme and its name
     fn scan_single_char_token(token: char) -> Option<Self> {
         match token {
             '(' => Some(Self::LeftParen),
             ')' => Some(Self::RightParen),
+            '{' => Some(Self::LeftBrace),
+            '}' => Some(Self::RightBrace),
+            '*' => Some(Self::Star),
+            '.' => Some(Self::Dot),
+            '+' => Some(Self::Plus),
+            '-' => Some(Self::Minus),
+            ',' => Some(Self::Comma),
+            ';' => Some(Self::Semicolon),
             _ => None,
         }
     }
@@ -132,18 +157,6 @@ fn main() {
             for token in scanner.tokens {
                 println!("{token}");
             }
-
-            // let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-            //     writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
-            //     String::new()
-            // });
-
-            // // Uncomment this block to pass the first stage
-            // if !file_contents.is_empty() {
-            //     panic!("Scanner not implemented");
-            // } else {
-            //     println!("EOF  null"); // Placeholder, remove this line when implementing the scanner
-            // }
         }
         _ => {
             eprintln!("Unknown command: {}", command);
