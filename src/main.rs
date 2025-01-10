@@ -32,6 +32,18 @@ enum TokenType {
     Equal,
     #[display("EQUAL_EQUAL")]
     EuqalEqual,
+    #[display("BANG")]
+    Bang,
+    #[display("BANG_EQUAL")]
+    BangEqual,
+    #[display("LESS")]
+    Less,
+    #[display("LESS_EQUAL")]
+    LessEqual,
+    #[display("GREATER")]
+    Greater,
+    #[display("GREATER_EQUAL")]
+    GreaterEqual,
     #[display("EOF")]
     Eof,
 }
@@ -54,6 +66,9 @@ impl TokenType {
             "," => Some(Self::Comma),
             ";" => Some(Self::Semicolon),
             "=" => Some(Self::Equal),
+            "!" => Some(Self::Bang),
+            "<" => Some(Self::Less),
+            ">" => Some(Self::Greater),
             _ => None,
         }
     }
@@ -64,8 +79,22 @@ impl TokenType {
         }
         match &content[..2] {
             "==" => Some(Self::EuqalEqual),
+            "!=" => Some(Self::BangEqual),
+            "<=" => Some(Self::LessEqual),
+            ">=" => Some(Self::GreaterEqual),
             _ => None,
         }
+    }
+
+    /// Greedy match on the longest token, return the matched token type
+    /// and the token length
+    fn scan_token(content: &str) -> Option<(Self, usize)> {
+        if let Some(token_type) = Self::scan_double_char_token(content) {
+            return Some((token_type, 2));
+        } else if let Some(token_type) = Self::scan_single_char_token(content) {
+            return Some((token_type, 1));
+        }
+        None
     }
 }
 
@@ -141,28 +170,21 @@ impl Scanner {
         for (line, content) in source.lines().enumerate().map(|(i, x)| (i + 1, x)) {
             let mut offset = 0;
             while offset < content.len() {
-                // greedy matching the longest token
-                if let Some(token_type) = TokenType::scan_double_char_token(&content[offset..]) {
-                    self.tokens.push(Token::new(
-                        token_type,
-                        Some(String::from(&content[offset..offset + 2])),
-                        None,
-                    ));
-                    offset += 2;
-                } else if let Some(token_type) =
-                    TokenType::scan_single_char_token(&content[offset..])
-                {
-                    self.tokens.push(Token::new(
-                        token_type,
-                        Some(String::from(&content[offset..offset + 1])),
-                        None,
-                    ));
-                    offset += 1;
-                } else {
-                    let c = content.chars().nth(offset).unwrap();
-                    eprintln!("{}", ScanError::UnexpectedChar(c, line));
-                    result = Err(ScanError::UnexpectedChar(c, line).into());
-                    offset += 1;
+                match TokenType::scan_token(&content[offset..]) {
+                    Some((token_type, token_length)) => {
+                        self.tokens.push(Token::new(
+                            token_type,
+                            Some(String::from(&content[offset..offset + token_length])),
+                            None,
+                        ));
+                        offset += token_length;
+                    }
+                    None => {
+                        let c = content.chars().nth(offset).unwrap();
+                        eprintln!("{}", ScanError::UnexpectedChar(c, line));
+                        result = Err(ScanError::UnexpectedChar(c, line).into());
+                        offset += 1;
+                    }
                 }
             }
         }
