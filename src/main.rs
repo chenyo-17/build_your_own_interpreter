@@ -33,7 +33,7 @@ enum TokenType {
 }
 
 impl TokenType {
-    // TODO: use a hashmap to store the lexeme and its name
+    // TODO: whether using a hashmap to store the lexeme and its name is better?
     fn scan_single_char_token(token: char) -> Option<Self> {
         match token {
             '(' => Some(Self::LeftParen),
@@ -97,8 +97,8 @@ impl fmt::Display for Token {
 
 #[derive(Error, Debug)]
 enum ScanError {
-    #[error("Unknown token type {0}")]
-    UnknownToken(String),
+    #[error("[line {1}] Error: Unexpected character: {0}")]
+    UnexpectedChar(char, usize),
 }
 
 struct Scanner {
@@ -119,18 +119,24 @@ impl Scanner {
             self.tokens.push(Token::default());
             return Ok(());
         };
-        for content in source.lines() {
+        let mut result = Ok(());
+        for (line, content) in source.lines().enumerate().map(|(i, x)| (i + 1, x)) {
             // TODO: only scan single character token
             for c in content.chars() {
-                let Some(token_type) = TokenType::scan_single_char_token(c) else {
-                    return Err(ScanError::UnknownToken(c.to_string()).into());
+                match TokenType::scan_single_char_token(c) {
+                    Some(token_type) => {
+                        self.tokens
+                            .push(Token::new(token_type, Some(c.to_string()), None));
+                    }
+                    None => {
+                        eprintln!("{}", ScanError::UnexpectedChar(c, line));
+                        result = Err(ScanError::UnexpectedChar(c, line).into());
+                    }
                 };
-                self.tokens
-                    .push(Token::new(token_type, Some(c.to_string()), None));
             }
         }
         self.tokens.push(Token::new(TokenType::Eof, None, None));
-        Ok(())
+        result
     }
 }
 
@@ -150,12 +156,13 @@ fn main() {
             // eprintln!("Logs from your program will appear here!");
 
             let mut scanner = Scanner::new(filename);
-            if let Err(e) = scanner.scan_tokens() {
-                eprintln!("{e}");
-            }
 
-            for token in scanner.tokens {
+            let result = scanner.scan_tokens();
+            for token in &scanner.tokens {
                 println!("{token}");
+            }
+            if result.is_err() {
+                std::process::exit(65);
             }
         }
         _ => {
