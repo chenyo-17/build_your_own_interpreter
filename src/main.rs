@@ -28,24 +28,42 @@ enum TokenType {
     Comma,
     #[display("SEMICOLON")]
     Semicolon,
+    #[display("EQUAL")]
+    Equal,
+    #[display("EQUAL_EQUAL")]
+    EuqalEqual,
     #[display("EOF")]
     Eof,
 }
 
 impl TokenType {
     // TODO: whether using a hashmap to store the lexeme and its name is better?
-    fn scan_single_char_token(token: char) -> Option<Self> {
-        match token {
-            '(' => Some(Self::LeftParen),
-            ')' => Some(Self::RightParen),
-            '{' => Some(Self::LeftBrace),
-            '}' => Some(Self::RightBrace),
-            '*' => Some(Self::Star),
-            '.' => Some(Self::Dot),
-            '+' => Some(Self::Plus),
-            '-' => Some(Self::Minus),
-            ',' => Some(Self::Comma),
-            ';' => Some(Self::Semicolon),
+    fn scan_single_char_token(content: &str) -> Option<Self> {
+        if content.is_empty() {
+            return None;
+        }
+        match &content[..1] {
+            "(" => Some(Self::LeftParen),
+            ")" => Some(Self::RightParen),
+            "{" => Some(Self::LeftBrace),
+            "}" => Some(Self::RightBrace),
+            "*" => Some(Self::Star),
+            "." => Some(Self::Dot),
+            "+" => Some(Self::Plus),
+            "-" => Some(Self::Minus),
+            "," => Some(Self::Comma),
+            ";" => Some(Self::Semicolon),
+            "=" => Some(Self::Equal),
+            _ => None,
+        }
+    }
+
+    fn scan_double_char_token(content: &str) -> Option<Self> {
+        if content.len() < 2 {
+            return None;
+        }
+        match &content[..2] {
+            "==" => Some(Self::EuqalEqual),
             _ => None,
         }
     }
@@ -121,18 +139,31 @@ impl Scanner {
         };
         let mut result = Ok(());
         for (line, content) in source.lines().enumerate().map(|(i, x)| (i + 1, x)) {
-            // TODO: only scan single character token
-            for c in content.chars() {
-                match TokenType::scan_single_char_token(c) {
-                    Some(token_type) => {
-                        self.tokens
-                            .push(Token::new(token_type, Some(c.to_string()), None));
-                    }
-                    None => {
-                        eprintln!("{}", ScanError::UnexpectedChar(c, line));
-                        result = Err(ScanError::UnexpectedChar(c, line).into());
-                    }
-                };
+            let mut offset = 0;
+            while offset < content.len() {
+                // greedy matching the longest token
+                if let Some(token_type) = TokenType::scan_double_char_token(&content[offset..]) {
+                    self.tokens.push(Token::new(
+                        token_type,
+                        Some(String::from(&content[offset..offset + 2])),
+                        None,
+                    ));
+                    offset += 2;
+                } else if let Some(token_type) =
+                    TokenType::scan_single_char_token(&content[offset..])
+                {
+                    self.tokens.push(Token::new(
+                        token_type,
+                        Some(String::from(&content[offset..offset + 1])),
+                        None,
+                    ));
+                    offset += 1;
+                } else {
+                    let c = content.chars().nth(offset).unwrap();
+                    eprintln!("{}", ScanError::UnexpectedChar(c, line));
+                    result = Err(ScanError::UnexpectedChar(c, line).into());
+                    offset += 1;
+                }
             }
         }
         self.tokens.push(Token::new(TokenType::Eof, None, None));
@@ -152,9 +183,6 @@ fn main() {
 
     match command.as_str() {
         "tokenize" => {
-            // You can use print statements as follows for debugging, they'll be visible when running tests.
-            // eprintln!("Logs from your program will appear here!");
-
             let mut scanner = Scanner::new(filename);
 
             let result = scanner.scan_tokens();
