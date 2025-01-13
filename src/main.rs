@@ -182,36 +182,44 @@ impl Scanner {
             }
         }
 
+        fn is_newline(c: char) -> bool {
+            c == '\n'
+        }
+
         let Ok(source) = read_to_string(&self.path) else {
             self.tokens.push(Token::default());
             return Ok(());
         };
+
         let mut result = Ok(());
-        for (line, content) in source.lines().enumerate().map(|(i, x)| (i + 1, x)) {
-            let mut offset = 0;
-            while offset < content.len() {
-                if is_comment(&content[offset..]) {
-                    // skip the whole line
-                    break;
+        let (mut line, mut offset) = (1, 0);
+        while offset < source.len() {
+            if is_comment(&source[offset..]) {
+                // skip the whole line
+                offset = source[offset..]
+                    .find(is_newline)
+                    .map(|p| offset + p)
+                    .unwrap_or(source.len());
+                continue;
+            }
+            match TokenType::scan_token(&source[offset..]) {
+                Some((token_type, token_length)) => {
+                    self.tokens.push(Token::new(
+                        token_type,
+                        Some(String::from(&source[offset..offset + token_length])),
+                        None,
+                    ));
+                    offset += token_length;
                 }
-                match TokenType::scan_token(&content[offset..]) {
-                    Some((token_type, token_length)) => {
-                        self.tokens.push(Token::new(
-                            token_type,
-                            Some(String::from(&content[offset..offset + token_length])),
-                            None,
-                        ));
-                        offset += token_length;
+                None => {
+                    let c = source.chars().nth(offset).unwrap();
+                    if is_newline(c) {
+                        line += 1;
+                    } else if !is_whitespace(c) {
+                        eprintln!("{}", ScanError::UnexpectedChar(c, line));
+                        result = Err(ScanError::UnexpectedChar(c, line).into());
                     }
-                    None => {
-                        let c = content.chars().nth(offset).unwrap();
-                        // the newline \n is already handled by `.lines()`
-                        if !is_whitespace(c) {
-                            eprintln!("{}", ScanError::UnexpectedChar(c, line));
-                            result = Err(ScanError::UnexpectedChar(c, line).into());
-                        }
-                        offset += 1;
-                    }
+                    offset += 1;
                 }
             }
         }
