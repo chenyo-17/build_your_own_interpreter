@@ -44,6 +44,8 @@ enum TokenType {
     Greater,
     #[display("GREATER_EQUAL")]
     GreaterEqual,
+    #[display("SLASH")]
+    Slash,
     #[display("EOF")]
     Eof,
 }
@@ -69,6 +71,7 @@ impl TokenType {
             "!" => Some(Self::Bang),
             "<" => Some(Self::Less),
             ">" => Some(Self::Greater),
+            "/" => Some(Self::Slash),
             _ => None,
         }
     }
@@ -162,6 +165,16 @@ impl Scanner {
     }
 
     fn scan_tokens(&mut self) -> anyhow::Result<()> {
+        fn is_comment(content: &str) -> bool {
+            if content.len() < 2 {
+                return false;
+            }
+            if &content[..2] == "//" {
+                return true;
+            }
+            false
+        }
+
         let Ok(source) = read_to_string(&self.path) else {
             self.tokens.push(Token::default());
             return Ok(());
@@ -170,6 +183,10 @@ impl Scanner {
         for (line, content) in source.lines().enumerate().map(|(i, x)| (i + 1, x)) {
             let mut offset = 0;
             while offset < content.len() {
+                if is_comment(&content[offset..]) {
+                    // skip the whole line
+                    break;
+                }
                 match TokenType::scan_token(&content[offset..]) {
                     Some((token_type, token_length)) => {
                         self.tokens.push(Token::new(
