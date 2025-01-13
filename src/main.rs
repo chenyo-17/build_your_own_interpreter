@@ -175,6 +175,13 @@ impl Scanner {
             false
         }
 
+        fn is_whitespace(c: char) -> bool {
+            match c {
+                ' ' | '\r' | '\t' => true,
+                _ => false,
+            }
+        }
+
         let Ok(source) = read_to_string(&self.path) else {
             self.tokens.push(Token::default());
             return Ok(());
@@ -198,8 +205,11 @@ impl Scanner {
                     }
                     None => {
                         let c = content.chars().nth(offset).unwrap();
-                        eprintln!("{}", ScanError::UnexpectedChar(c, line));
-                        result = Err(ScanError::UnexpectedChar(c, line).into());
+                        // the newline \n is already handled by `.lines()`
+                        if !is_whitespace(c) {
+                            eprintln!("{}", ScanError::UnexpectedChar(c, line));
+                            result = Err(ScanError::UnexpectedChar(c, line).into());
+                        }
                         offset += 1;
                     }
                 }
