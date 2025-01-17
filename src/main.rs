@@ -46,7 +46,9 @@ enum TokenType {
     #[display("SLASH")]
     Slash,
     #[display("STRING")]
-    String_,
+    StringLiteral,
+    #[display("NUMBER")]
+    NumberLiteral,
     #[display("EOF")]
     Eof,
 }
@@ -108,6 +110,26 @@ impl TokenType {
         Err(ScanError::UnterminedString(*line).into())
     }
 
+    /// Return the length of the number literal
+    /// We leave the parsing to the caller so that it knows the lexeme and its length
+    /// It does not accept number literals like `.3`
+    fn scan_number_literal(content: &str) -> Option<usize> {
+        let mut dot_consumed = false;
+        for (i, c) in content.chars().enumerate() {
+            if i == 0 && !c.is_numeric() {
+                return None;
+            }
+            if c.is_numeric() || (c == '.' && !dot_consumed) {
+                if c == '.' {
+                    dot_consumed = true;
+                }
+            } else {
+                return Some(i);
+            }
+        }
+        Some(content.len())
+    }
+
     /// Greedy match on the longest token, construct and return the `Token`
     /// if no token is matched, return `Ok(None)`,
     /// if an error is encountered, propagate it to the caller.
@@ -125,13 +147,22 @@ impl TokenType {
             Ok(Some(len)) => {
                 *offset += len + 2; // include ""
                 return Ok(Some(Token::new(
-                    Self::String_,
+                    Self::StringLiteral,
                     Some(&content[..len + 2]),                // include ""
                     Some(Either::Left(&content[1..len + 1])), // exclude "
                 )));
             }
             Ok(None) => {
-                if let Some(token_type) = Self::scan_double_char_token(content) {
+                if let Some(number_len) = Self::scan_number_literal(content) {
+                    *offset += number_len;
+                    let number_lexeme = &content[..number_len];
+                    let number = number_lexeme.parse::<f32>().unwrap();
+                    return Ok(Some(Token::new(
+                        Self::NumberLiteral,
+                        Some(number_lexeme),
+                        Some(Either::Right(number)),
+                    )));
+                } else if let Some(token_type) = Self::scan_double_char_token(content) {
                     *offset += 2;
                     return Ok(Some(Token::new(token_type, Some(&content[..2]), None)));
                 } else if let Some(token_type) = Self::scan_single_char_token(content) {
@@ -147,14 +178,14 @@ impl TokenType {
 struct Token<'a> {
     token_type: TokenType,
     lexeme: Option<&'a str>,
-    literal: Option<Either<&'a str, i32>>,
+    literal: Option<Either<&'a str, f32>>,
 }
 
 impl<'a> Token<'a> {
     fn new(
         token_type: TokenType,
         lexeme: Option<&'a str>,
-        literal: Option<Either<&'a str, i32>>,
+        literal: Option<Either<&'a str, f32>>,
     ) -> Self {
         Self {
             token_type,
@@ -181,7 +212,17 @@ impl fmt::Display for Token<'_> {
             "{} {} {}",
             self.token_type,
             self.lexeme.as_ref().unwrap_or(&""),
-            self.literal.as_ref().unwrap_or(&Either::Left("null"))
+            match self.literal.as_ref().unwrap_or(&Either::Left("null")) {
+                // display 1234 as 1234.0
+                Either::Right(n) => {
+                    if n.fract() == 0.0 {
+                        format!("{:.1}", n)
+                    } else {
+                        n.to_string()
+                    }
+                }
+                Either::Left(s) => s.to_string(),
+            }
         )
     }
 }
