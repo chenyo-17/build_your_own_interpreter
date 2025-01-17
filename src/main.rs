@@ -49,6 +49,8 @@ enum TokenType {
     StringLiteral,
     #[display("NUMBER")]
     NumberLiteral,
+    #[display("IDENTIFIER")]
+    Identifier,
     #[display("EOF")]
     Eof,
 }
@@ -115,7 +117,7 @@ impl TokenType {
     /// It does not accept number literals like `.3`
     fn scan_number_literal(content: &str) -> Option<usize> {
         let mut dot_consumed = false;
-        for (i, c) in content.chars().enumerate() {
+        for (i, c) in content.char_indices() {
             if i == 0 && !c.is_numeric() {
                 return None;
             }
@@ -130,10 +132,30 @@ impl TokenType {
         Some(content.len())
     }
 
+    /// Return the length of scanned identifier
+    fn scan_identifier(content: &str) -> Option<usize> {
+        for (i, c) in content.char_indices() {
+            // an identifier starts with _ or letter
+            if i == 0 && !(c.is_ascii_alphabetic() || c == '_') {
+                return None;
+            }
+            if !(c.is_ascii_alphanumeric() || c == '_') {
+                return Some(i);
+            }
+        }
+        Some(content.len())
+    }
+
     /// Greedy match on the longest token, construct and return the `Token`
     /// if no token is matched, return `Ok(None)`,
     /// if an error is encountered, propagate it to the caller.
     /// `line` and `offset` are updated during the scan.
+    /// The order of matching is token type is the following:
+    /// 1. String literal (starts with `"`)
+    /// 2. Identifier (starts with [a-zA-Z_])
+    /// 3. Number literal,
+    /// 4. Double char token
+    /// 5. Single char token
     fn scan_token<'a>(
         content: &'a str,
         line: &mut usize,
@@ -153,7 +175,14 @@ impl TokenType {
                 )));
             }
             Ok(None) => {
-                if let Some(number_len) = Self::scan_number_literal(content) {
+                if let Some(identifer_len) = Self::scan_identifier(content) {
+                    *offset += identifer_len;
+                    return Ok(Some(Token::new(
+                        Self::Identifier,
+                        Some(&content[..identifer_len]),
+                        None,
+                    )));
+                } else if let Some(number_len) = Self::scan_number_literal(content) {
                     *offset += number_len;
                     let number_lexeme = &content[..number_len];
                     let number = number_lexeme.parse::<f32>().unwrap();
