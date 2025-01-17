@@ -51,6 +51,40 @@ enum TokenType {
     NumberLiteral,
     #[display("IDENTIFIER")]
     Identifier,
+    // reserved words
+    #[display("AND")]
+    And,
+    #[display("CLASS")]
+    Class,
+    #[display("ELSE")]
+    Else,
+    #[display("FALSE")]
+    False,
+    #[display("FOR")]
+    For,
+    #[display("FUN")]
+    Fun,
+    #[display("IF")]
+    If,
+    #[display("NIL")]
+    Nil,
+    #[display("OR")]
+    Or,
+    #[display("PRINT")]
+    Print,
+    #[display("RETURN")]
+    Return,
+    #[display("SUPER")]
+    Super,
+    #[display("THIS")]
+    This,
+    #[display("TRUE")]
+    True,
+    #[display("VAR")]
+    Var,
+    #[display("WHILE")]
+    While,
+
     #[display("EOF")]
     Eof,
 }
@@ -146,6 +180,31 @@ impl TokenType {
         Some(content.len())
     }
 
+    /// Return the token type and the length of the scanned reserved words
+    /// This method is only called if `content` can be scanned as an identifier,
+    /// this method checks whether the identifier is a reserved word
+    fn scan_reserved_words(content: &str) -> Option<(Self, usize)> {
+        match content {
+            "and" => Some((Self::And, 3)),
+            "class" => Some((Self::Class, 5)),
+            "else" => Some((Self::Else, 4)),
+            "false" => Some((Self::False, 5)),
+            "for" => Some((Self::For, 3)),
+            "fun" => Some((Self::Fun, 3)),
+            "if" => Some((Self::If, 2)),
+            "nil" => Some((Self::Nil, 3)),
+            "or" => Some((Self::Or, 2)),
+            "print" => Some((Self::Print, 5)),
+            "return" => Some((Self::Return, 6)),
+            "super" => Some((Self::Super, 5)),
+            "this" => Some((Self::This, 4)),
+            "true" => Some((Self::True, 4)),
+            "var" => Some((Self::Var, 3)),
+            "while" => Some((Self::While, 5)),
+            _ => None,
+        }
+    }
+
     /// Greedy match on the longest token, construct and return the `Token`
     /// if no token is matched, return `Ok(None)`,
     /// if an error is encountered, propagate it to the caller.
@@ -153,9 +212,10 @@ impl TokenType {
     /// The order of matching is token type is the following:
     /// 1. String literal (starts with `"`)
     /// 2. Identifier (starts with [a-zA-Z_])
-    /// 3. Number literal,
-    /// 4. Double char token
-    /// 5. Single char token
+    /// 3. Reserved words (if it is already an identifier)
+    /// 4. Number literal,
+    /// 5. Double char token
+    /// 6. Single char token
     fn scan_token<'a>(
         content: &'a str,
         line: &mut usize,
@@ -176,12 +236,24 @@ impl TokenType {
             }
             Ok(None) => {
                 if let Some(identifer_len) = Self::scan_identifier(content) {
-                    *offset += identifer_len;
-                    return Ok(Some(Token::new(
-                        Self::Identifier,
-                        Some(&content[..identifer_len]),
-                        None,
-                    )));
+                    // check whether it is exactly a reserved word
+                    if let Some((reserved_type, token_len)) =
+                        Self::scan_reserved_words(&content[..identifer_len])
+                    {
+                        *offset += identifer_len;
+                        return Ok(Some(Token::new(
+                            reserved_type,
+                            Some(&content[..token_len]),
+                            None,
+                        )));
+                    } else {
+                        *offset += identifer_len;
+                        return Ok(Some(Token::new(
+                            Self::Identifier,
+                            Some(&content[..identifer_len]),
+                            None,
+                        )));
+                    }
                 } else if let Some(number_len) = Self::scan_number_literal(content) {
                     *offset += number_len;
                     let number_lexeme = &content[..number_len];
