@@ -4,7 +4,7 @@ use either::*;
 use thiserror::Error;
 
 #[derive(Display)]
-enum TokenType {
+pub enum TokenType {
     #[display("LEFT_PAREN")]
     LeftParen,
     #[display("RIGHT_PAREN")]
@@ -214,7 +214,7 @@ impl TokenType {
     /// 4. Number literal,
     /// 5. Double char token
     /// 6. Single char token
-    fn scan_token<'a>(
+    fn scan<'a>(
         content: &'a str,
         line: &mut usize,
         offset: &mut usize,
@@ -275,9 +275,9 @@ impl TokenType {
 }
 
 pub struct Token<'a> {
-    token_type: TokenType,
-    lexeme: Option<&'a str>,
-    literal: Option<Either<&'a str, f32>>,
+    pub token_type: TokenType,
+    pub lexeme: Option<&'a str>,
+    pub literal: Option<Either<&'a str, f32>>,
 }
 
 impl<'a> Token<'a> {
@@ -335,10 +335,14 @@ enum ScanError {
 }
 
 #[derive(Default)]
-pub struct Scanner<'a>(pub Vec<Token<'a>>);
+pub struct Scanner<'a> {
+    pub tokens: Vec<Token<'a>>,
+    /// Whether a scan error is encounted
+    pub scan_error: bool,
+}
 
 impl<'a> Scanner<'a> {
-    pub fn scan_tokens(&mut self, source: &'a str) -> anyhow::Result<()> {
+    pub fn tokenize(&mut self, source: &'a str) {
         fn is_comment(content: &str) -> bool {
             if content.len() < 2 {
                 return false;
@@ -353,7 +357,6 @@ impl<'a> Scanner<'a> {
             matches!(c, ' ' | '\r' | '\t')
         }
 
-        let mut result = Ok(());
         let (mut line, mut offset) = (1, 0);
         while offset < source.len() {
             if is_comment(&source[offset..]) {
@@ -364,13 +367,13 @@ impl<'a> Scanner<'a> {
                     .unwrap_or(source.len());
                 continue;
             }
-            match TokenType::scan_token(&source[offset..], &mut line, &mut offset) {
+            match TokenType::scan(&source[offset..], &mut line, &mut offset) {
                 Err(e) => {
                     eprintln!("{}", e);
-                    result = Err(e);
+                    self.scan_error = true;
                 }
                 Ok(Some(token)) => {
-                    self.0.push(token);
+                    self.tokens.push(token);
                 }
                 Ok(None) => {
                     let c = source.chars().nth(offset).unwrap();
@@ -378,13 +381,12 @@ impl<'a> Scanner<'a> {
                         line += 1;
                     } else if !is_whitespace(c) {
                         eprintln!("{}", ScanError::UnexpectedChar(c, line));
-                        result = Err(ScanError::UnexpectedChar(c, line).into());
+                        self.scan_error = true;
                     }
                     offset += 1;
                 }
             }
         }
-        self.0.push(Token::default());
-        result
+        self.tokens.push(Token::default());
     }
 }
