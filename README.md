@@ -1,3 +1,7 @@
+# Personal README
+This is a personal repository for the CodeCrafter's project "Build your own Interpreter".
+
+# CodeCrafter README
 [![progress-banner](https://backend.codecrafters.io/progress/interpreter/6ad17af5-3004-4fab-97c3-1b4aa0a59baa)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
 This is a starting point for Rust solutions to the
