@@ -7,8 +7,11 @@ pub enum Expression<'a> {
 }
 
 impl<'a> Expression<'a> {
-    fn parse<'b>(token: &'b Token<'a>) -> Option<Self> {
-        Primary::parse(token).map(Expression::Primary)
+    fn parse<'b>(tokens: &'b Vec<Token<'a>>, token_offset: &mut usize) -> Option<Self> {
+        if *token_offset >= tokens.len() {
+            return None;
+        }
+        Primary::parse(tokens, token_offset).map(Expression::Primary)
         // if let Some(lit) = Literal::parse(token) {
         //     Some(Expression::Literal(lit))
         // } else {
@@ -35,6 +38,7 @@ pub enum Primary<'a> {
     Nil,
     True,
     False,
+    Group(Box<Expression<'a>>),
 }
 
 impl fmt::Display for Primary<'_> {
@@ -43,6 +47,7 @@ impl fmt::Display for Primary<'_> {
             f,
             "{}",
             match self {
+                Self::Group(e) => format!("(group {})", e),
                 Self::Number(n) => {
                     if n.fract() == 0.0 {
                         format!("{:.1}", n)
@@ -60,8 +65,9 @@ impl fmt::Display for Primary<'_> {
 }
 
 impl<'a> Primary<'a> {
-    fn parse<'b>(token: &'b Token<'a>) -> Option<Self> {
-        match token.token_type {
+    fn parse<'b>(tokens: &'b Vec<Token<'a>>, token_offset: &mut usize) -> Option<Self> {
+        let token = &tokens[*token_offset];
+        let result = match token.token_type {
             TokenType::True => Some(Primary::True),
             TokenType::False => Some(Primary::False),
             TokenType::Nil => Some(Primary::Nil),
@@ -69,8 +75,19 @@ impl<'a> Primary<'a> {
                 Some(Primary::Number(token.literal.unwrap().unwrap_right()))
             }
             TokenType::StringLiteral => Some(Primary::String(token.literal.unwrap().unwrap_left())),
+            TokenType::LeftParen => {
+                *token_offset += 1;
+                if let Some(group_expr) = Expression::parse(tokens, token_offset) {
+                    assert_eq!(TokenType::RightParen, tokens[*token_offset].token_type);
+                    Some(Primary::Group(Box::new(group_expr)))
+                } else {
+                    None
+                }
+            }
             _ => None,
-        }
+        };
+        *token_offset += 1;
+        result
     }
 }
 
@@ -88,8 +105,9 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) {
-        for token in &self.tokens {
-            if let Some(expr) = Expression::parse(token) {
+        let mut token_offset = 0;
+        while token_offset < self.tokens.len() {
+            if let Some(expr) = Expression::parse(&self.tokens, &mut token_offset) {
                 self.expr.push(expr);
             }
         }

@@ -3,7 +3,7 @@ use derive_more::Display;
 use either::*;
 use thiserror::Error;
 
-#[derive(Display)]
+#[derive(Display, Debug, PartialEq)]
 pub enum TokenType {
     #[display("LEFT_PAREN")]
     LeftParen,
