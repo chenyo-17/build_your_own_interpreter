@@ -2,5 +2,6 @@
 66
 "foo"
 ("bar")
-(12.34)
-(true)
+!true
+!("bar")
+-(!(true))

@@ -1,9 +1,10 @@
-use core::fmt;
-
 use crate::scanner::{Token, TokenType};
+use core::fmt;
+use either::Either;
 
 pub enum Expression<'a> {
     Primary(Primary<'a>),
+    Unary(Unary<'a>),
 }
 
 impl<'a> Expression<'a> {
@@ -11,12 +12,10 @@ impl<'a> Expression<'a> {
         if *token_offset >= tokens.len() {
             return None;
         }
-        Primary::parse(tokens, token_offset).map(Expression::Primary)
-        // if let Some(lit) = Literal::parse(token) {
-        //     Some(Expression::Literal(lit))
-        // } else {
-        //     None
-        // }
+        // precedence: Unary > Primary
+        Unary::parse(tokens, token_offset)
+            .map(Expression::Unary)
+            .or_else(|| Primary::parse(tokens, token_offset).map(Expression::Primary))
     }
 }
 
@@ -26,7 +25,8 @@ impl fmt::Display for Expression<'_> {
             f,
             "{}",
             match self {
-                Self::Primary(lit) => lit,
+                Self::Primary(lit) => format!("{lit}"),
+                Self::Unary(unary) => format!("{unary}"),
             }
         )
     }
@@ -68,26 +68,64 @@ impl<'a> Primary<'a> {
     fn parse<'b>(tokens: &'b Vec<Token<'a>>, token_offset: &mut usize) -> Option<Self> {
         let token = &tokens[*token_offset];
         let result = match token.token_type {
-            TokenType::True => Some(Primary::True),
-            TokenType::False => Some(Primary::False),
-            TokenType::Nil => Some(Primary::Nil),
-            TokenType::NumberLiteral => {
-                Some(Primary::Number(token.literal.unwrap().unwrap_right()))
-            }
-            TokenType::StringLiteral => Some(Primary::String(token.literal.unwrap().unwrap_left())),
+            TokenType::True => Some(Self::True),
+            TokenType::False => Some(Self::False),
+            TokenType::Nil => Some(Self::Nil),
+            TokenType::NumberLiteral => Some(Self::Number(token.literal.unwrap().unwrap_right())),
+            TokenType::StringLiteral => Some(Self::String(token.literal.unwrap().unwrap_left())),
             TokenType::LeftParen => {
                 *token_offset += 1;
-                if let Some(group_expr) = Expression::parse(tokens, token_offset) {
+                Expression::parse(tokens, token_offset).map(|expr| {
                     assert_eq!(TokenType::RightParen, tokens[*token_offset].token_type);
-                    Some(Primary::Group(Box::new(group_expr)))
-                } else {
-                    None
-                }
+                    Self::Group(Box::new(expr))
+                })
             }
             _ => None,
         };
         *token_offset += 1;
         result
+    }
+}
+
+pub enum Unary<'a> {
+    Bang(Box<Either<Unary<'a>, Primary<'a>>>),
+    Minus(Box<Either<Unary<'a>, Primary<'a>>>),
+}
+
+impl<'a> Unary<'a> {
+    fn parse<'b>(tokens: &'b Vec<Token<'a>>, token_offset: &mut usize) -> Option<Self> {
+        let token = &tokens[*token_offset];
+        let result = match token.token_type {
+            TokenType::Bang => {
+                *token_offset += 1;
+                Expression::parse(tokens, token_offset).map(|expr| match expr {
+                    Expression::Unary(u) => Self::Bang(Box::new(Either::Left(u))),
+                    Expression::Primary(p) => Self::Bang(Box::new(Either::Right(p))),
+                })
+            }
+            TokenType::Minus => {
+                *token_offset += 1;
+                Expression::parse(tokens, token_offset).map(|expr| match expr {
+                    Expression::Unary(u) => Self::Minus(Box::new(Either::Left(u))),
+                    Expression::Primary(p) => Self::Minus(Box::new(Either::Right(p))),
+                })
+            }
+            _ => None,
+        };
+        result
+    }
+}
+
+impl fmt::Display for Unary<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Bang(u) => format!("(! {})", u),
+                Self::Minus(u) => format!("(- {})", u),
+            }
+        )
     }
 }
 
