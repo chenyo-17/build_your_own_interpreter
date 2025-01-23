@@ -274,6 +274,7 @@ impl TokenType {
     }
 }
 
+#[derive(Debug)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: Option<&'a str>,

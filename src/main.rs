@@ -35,7 +35,7 @@ fn main() {
         }
         "parse" => {
             let parser = parse(&source);
-            for expr in &parser.expr {
+            for expr in &parser.exprs {
                 println!("{expr}");
             }
         }
